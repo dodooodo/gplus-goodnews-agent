@@ -3,7 +3,7 @@ from google import genai
 import app.prompts as prompts
 
 
-client = genai.Client(api_key='AIzaSyA8KvZoc33OcXY4bqr7n5pOEKLKAfuKliE')
+client = genai.Client()
 
 
 # OpenAI API 請求封裝
