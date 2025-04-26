@@ -36,6 +36,7 @@ class CombinedRequest(BaseModel):
 
 
 class ResponseModel(BaseModel):
+    crawled_text: str
     headline: str
     contents: str
     headline_zh_tw: str
@@ -76,6 +77,7 @@ async def linkedin_request(req: LIRequest):
         for post, gpt_response in zip(post_data_list, gpt_responses):
             parsed = parse_str_to_dict(gpt_response)
             results.append(ResponseModel(
+                crawled_text=post.text,
                 headline=parsed.get("Headline", ""),
                 contents=parsed.get("Content", ""),
                 headline_zh_tw=parsed.get("Headline-zh-tw", ""),
@@ -104,6 +106,7 @@ async def google_search_news_request(req: GoogleNewsRequest):
             lang=req.gs_language,
             advanced=True
         ):
+            # print('result', result)
             # step 1.5: keep search results
             search_result_list.append(result)
 
@@ -118,9 +121,10 @@ async def google_search_news_request(req: GoogleNewsRequest):
         gpt_responses = await asyncio.gather(*tasks)
         
         results = []
-        for search_result, gpt_response in zip(search_result_list, gpt_responses):
+        for search_result, crawled_text, gpt_response in zip(search_result_list, news_content_list, gpt_responses):
             parsed = parse_str_to_dict(gpt_response)
             results.append(ResponseModel(
+                crawled_text=crawled_text,
                 headline=parsed.get("Headline", ""),
                 contents=parsed.get("Content", ""),
                 headline_zh_tw=parsed.get("Headline-zh-tw", ""),
@@ -141,14 +145,19 @@ async def combined_search(req: CombinedRequest):
     try:
         print(req)
         # Run both scrapers concurrently
-        if req.linkedin_url is not None:
-            linkedin_task = linkedin_request(LIRequest(linkedin_url=req.linkedin_url, month=req.month, language=req.language))
-        
-        if req.google_query is not None:
-            google_task = google_search_news_request(GoogleNewsRequest(query=req.google_query, num_results=req.num_google_results, month=req.month, language=req.language, gs_language=req.gs_language))
-        
+        tasks = []
+        if req.linkedin_url:
+            tasks.append(linkedin_request(LIRequest(linkedin_url=req.linkedin_url, month=req.month, language=req.language)))
+
+        if req.google_query:
+            tasks.append(google_search_news_request(GoogleNewsRequest(query=req.google_query, num_results=req.num_google_results, month=req.month, language=req.language, gs_language=req.gs_language)))
+
         # Wait for both tasks to complete
-        linkedin_results, google_results = await asyncio.gather(linkedin_task, google_task)
+        results = await asyncio.gather(*tasks)
+
+        # 解包結果
+        linkedin_results = results[0] if req.linkedin_url else []
+        google_results = results[1] if req.google_query and req.linkedin_url else results[0] if req.google_query else []
         
         # Combine and sort results
         combined_results = linkedin_results + google_results

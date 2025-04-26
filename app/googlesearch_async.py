@@ -79,9 +79,22 @@ async def search(
     async with httpx.AsyncClient(proxy=proxies, timeout=timeout) as client:
         while fetched_results < num_results:
             try:
+                print({
+                        "tbm": "nws",
+                        "q": term,
+                        "num": num_results + 2,
+                        "hl": lang,
+                        "start": start,
+                        "safe": safe,
+                        "gl": region,
+                        "tbs": tbs_format(month),
+                    })
                 resp = await client.get(
                     "https://www.google.com/search",
-                    headers=Headers().generate(),
+                    headers={
+                            "User-Agent": await get_useragent(),
+                            "Accept": "*/*"
+                    },
                     params={
                         "tbm": "nws",
                         "q": term,
@@ -100,10 +113,12 @@ async def search(
                 resp.raise_for_status()
 
                 soup = BeautifulSoup(resp.text, "html.parser")
+                # print(soup)
                 result_block = soup.find_all("div", class_="ezO2md")
                 new_results = 0
-
+                # print('result_block:', result_block)
                 for result in result_block:
+                    print('fetched_links:', fetched_links)
                     link_tag = result.find("a", href=True)
                     title_tag = link_tag.find("span", class_="CVA68e") if link_tag else None
                     description_tag = result.find("span", class_="FrIlee")
@@ -122,6 +137,7 @@ async def search(
                         new_results += 1
                         
                         if advanced:
+                            # print('link:', link)
                             yield SearchResult(link, title, description)
                         else:
                             yield link
@@ -172,19 +188,21 @@ async def scrape_news_content(url: str, timeout: int = 10) -> str:
     """
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            headers = {
-                "User-Agent": await get_useragent(),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-            }
+            # headers = {
+            #     "User-Agent": await get_useragent(),
+            #     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            #     "Accept-Language": "en-US,en;q=0.5",
+            # }
             
-            resp = await client.get(url, headers=headers)
+            resp = await client.get(url, headers=Headers().generate())
             resp.raise_for_status()
             
             # If we got redirected, get the final URL
             final_url = str(resp.url)
             if final_url != url:
                 print(f"Redirected from {url} to {final_url}")
+
+            # print(final_url)
             
             soup = BeautifulSoup(resp.text, "html.parser")
             
@@ -224,8 +242,9 @@ async def scrape_news_content(url: str, timeout: int = 10) -> str:
                 paragraphs = content.find_all('p')
                 # Filter out short paragraphs (likely navigation or ads)
                 text = '\n'.join(p.get_text().strip() for p in paragraphs if len(p.get_text().strip()) > 50)
+                # print('Text:', text, '-'*100)
                 return text
-            
+            print("Could not extract content from the page", '\n', '-'*100)
             return "Could not extract content from the page"
             
     except httpx.HTTPStatusError as e:

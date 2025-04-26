@@ -62,7 +62,8 @@ async def scrape_linkedin_posts(url: str, month: int, headless: bool = True) -> 
 
 def check_time_in_month(utc_date: str, month: int) -> bool:
     try:
-        return month == datetime.strptime(utc_date, '%a, %d %b %Y %H:%M:%S GMT').month
+        post_time = datetime.strptime(utc_date, '%a, %d %b %Y %H:%M:%S GMT')
+        return month == post_time.month and post_time.year == datetime.now().year
     except Exception:
         return False
 

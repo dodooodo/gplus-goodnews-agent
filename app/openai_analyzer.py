@@ -1,8 +1,11 @@
 from openai import AsyncOpenAI
 import app.prompts as prompts
+import dotenv
 
 
-client = AsyncOpenAI()
+client = AsyncOpenAI(
+    api_key=dotenv.dotenv_values(".env")["OPENAI_API_KEY"],
+    )
 
 
 # OpenAI API 請求封裝
