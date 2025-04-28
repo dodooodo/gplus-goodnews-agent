@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from app.linkedin_scraper import scrape_linkedin_posts
 from app.openai_analyzer import analyze_posts
 # from app.gemini_analyzer import analyze_posts
-from app.utils import parse_str_to_dict
+from app.utils import parse_linkedin_url, parse_str_to_dict
 from app.googlesearch_async import search, scrape_news_content
 from typing import List, Optional
 import asyncio
@@ -63,6 +63,9 @@ async def post_process_results(results: list[ResponseModel]) -> list[ResponseMod
 @app.post("/scrape", response_model=List[ResponseModel])
 async def linkedin_request(req: LIRequest):
     try:
+        # Step 0: parse linkedin URL
+        linkedin_url = parse_linkedin_url(req.linkedin_url)
+
         # Step 1: Scrape LinkedIn posts
         post_data_list = await scrape_linkedin_posts(req.linkedin_url, req.month)
 

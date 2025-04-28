@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import datetime
+from urllib.parse import urlparse, urlunparse
 
 
 # 從 LinkedIn 貼文的 URL 中解析日期
@@ -62,3 +63,41 @@ def parse_str_to_dict(response: str) -> dict:
             "Contents": response,
             "Good News Category": "None"
         }
+
+
+def parse_linkedin_url(raw_url: str) -> str:
+    """
+    Smartly normalize LinkedIn URLs to the format https://www.linkedin.com/company/foo/
+    """
+    # Add scheme if missing
+    if not raw_url.startswith(('http://', 'https://')):
+        raw_url = 'https://' + raw_url
+    
+    parsed = urlparse(raw_url)
+
+    # Force www.linkedin.com domain
+    netloc = parsed.netloc.lower()
+    if 'linkedin.com' not in netloc:
+        return raw_url
+    if not netloc.startswith('www.'):
+        netloc = 'www.' + netloc.lstrip('.')
+
+    # Clean path
+    path_parts = parsed.path.strip('/').split('/')
+    if not path_parts or not path_parts[0]:
+        return urlunparse(('https', netloc, '/', '', '', ''))
+
+    first_part = path_parts[0].lower()
+
+    # If it's a personal profile, school page, or other non-company type
+    if first_part in {'in', 'school', 'jobs', 'learning', 'feed'}:
+        return urlunparse(('https', netloc, parsed.path, '', '', ''))
+
+    # If already /company/foo
+    if first_part == 'company' and len(path_parts) >= 2:
+        new_path = f"/company/{path_parts[1]}/"
+    else:
+        # Otherwise, assume it's a company and build /company/foo/
+        new_path = f"/company/{first_part}/"
+
+    return urlunparse(('https', netloc, new_path, '', '', ''))
